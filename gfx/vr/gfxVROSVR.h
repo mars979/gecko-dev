@@ -48,9 +48,6 @@ public:
   void DestroyRenderTargetSet(RenderTargetSet *aRTSet) override;
   void SubmitFrame(RenderTargetSet *aRTSet) override;
 
-  // not needed really.. OSVR server handles HMD
-  //ovrHmd GetOSVRHMD() const { return mHMD; }
-
 protected:
   // must match the size of VRDistortionVertex
   struct DistortionVertex {
@@ -66,11 +63,7 @@ protected:
       MOZ_COUNT_DTOR_INHERITED(HMDInfoOSVR, VRHMDInfo);
   }
 
-  //ovrHmd mHMD;
-  //ovrFovPort mFOVPort[2];
   uint32_t mStartCount;
-  //ovrTrackingState mLastTrackingState;
-  
   OSVR_ClientContext *m_ctx;
   OSVR_ClientInterface m_iface;
   
@@ -90,13 +83,13 @@ public:
   virtual void Destroy() override;
   virtual void GetHMDs(nsTArray<nsRefPtr<VRHMDInfo> >& aHMDResult) override;
 protected:
-    // only one HMD @todo see if it shold be an array
-    nsRefPtr<impl::HMDInfoOSVR> mOSVRHMD;
+  // only one HMD for now @todo we can have more than one HMD connected
+  // nsTArray<nsRefPtr<impl::HMDInfoOSVR>> mOSVRHMDs;
+  nsRefPtr<impl::HMDInfoOSVR> mOSVRHMD;
   bool mOSVRInitialized;
   bool mOSVRPlatformInitialized;
 
   OSVR_ClientContext m_ctx;
-  //OSVR_ClientInterface m_iface;
 };
 
 } // namespace gfx
