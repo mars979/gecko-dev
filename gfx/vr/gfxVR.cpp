@@ -14,6 +14,7 @@
 #include "gfxVR.h"
 #if defined(XP_WIN)
 #include "gfxVROculus.h"
+#include "gfxVROSVR.h"
 #endif
 #if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_LINUX)
 #include "gfxVROculus050.h"
@@ -120,6 +121,12 @@ VRHMDManager::ManagerInit()
     useOculus050 = false;
     sManagers->AppendElement(mgr);
   }
+
+  mgr = new VRHMDManagerOSVR();
+  if (mgr->PlatformInit()){
+      sManagers->AppendElement(mgr);
+  }
+
 #endif
 
 #if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_LINUX)

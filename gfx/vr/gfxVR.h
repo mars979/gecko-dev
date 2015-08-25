@@ -28,6 +28,7 @@ enum class VRHMDType : uint16_t {
   Oculus,
   Cardboard,
   Oculus050,
+  OSVR,
   NumHMDTypes
 };
 
