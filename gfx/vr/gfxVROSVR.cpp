@@ -147,6 +147,9 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context)
 void
 HMDInfoOSVR::Destroy()
 {
+    //free interface
+    osvr_ClientFreeInterface(*m_ctx, m_iface);
+
     // destroy non-owning pointer
     m_ctx = nullptr;
 
@@ -185,7 +188,6 @@ HMDInfoOSVR::StartSensorTracking()
 void
 HMDInfoOSVR::StopSensorTracking()
 {
-  osvr_ClientFreeInterface(*m_ctx, m_iface);
 }
 
 void
