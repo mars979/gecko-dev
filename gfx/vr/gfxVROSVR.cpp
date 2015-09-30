@@ -25,20 +25,21 @@
 #include "nsIScreenManager.h"
 
 #ifndef M_PI
-# define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846
 #endif
 
 using namespace mozilla::gfx;
 using namespace mozilla::gfx::impl;
 
 namespace {
-
 // need to typedef functions that will be used in the code below
 extern "C"{
-typedef OSVR_ClientContext(*pfn_osvrClientInit) (const char applicationIdentifier[], uint32_t flags);
+typedef OSVR_ClientContext(*pfn_osvrClientInit) (const char applicationIdentifier[], 
+                                                 uint32_t flags);
 typedef OSVR_ReturnCode(*pfn_osvrClientShutdown)(OSVR_ClientContext ctx);
 typedef OSVR_ReturnCode(*pfn_osvrClientUpdate)(OSVR_ClientContext ctx);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetInterface)(OSVR_ClientContext ctx, const char path[],
+typedef OSVR_ReturnCode(*pfn_osvrClientGetInterface)(OSVR_ClientContext ctx, 
+                                                     const char path[],
                                                      OSVR_ClientInterface *iface);
 typedef OSVR_ReturnCode(*pfn_osvrClientFreeInterface)(OSVR_ClientContext ctx,
                                                       OSVR_ClientInterface iface);
@@ -58,23 +59,23 @@ static pfn_osvrClientFreeInterface osvr_ClientFreeInterface = nullptr;
 static pfn_osvrGetOrientationState osvr_GetOrientationState = nullptr;
 static pfn_osvrGetPositionState osvr_GetPositionState = nullptr;
 
-
-bool LoadOSVRRuntime()
+bool
+LoadOSVRRuntime()
 {
-    static PRLibrary *osvrUtilLib = nullptr;
-    static PRLibrary *osvrCommonLib = nullptr;
-    static PRLibrary *osvrClientLib = nullptr;
-    static PRLibrary *osvrClientKitLib = nullptr;
+  static PRLibrary *osvrUtilLib = nullptr;
+  static PRLibrary *osvrCommonLib = nullptr;
+  static PRLibrary *osvrClientLib = nullptr;
+  static PRLibrary *osvrClientKitLib = nullptr;
   //this looks up the path in the about:config setting, from greprefs.js or modules\libpref\init\all.js
-  nsAdoptingCString osvrUtilPath = mozilla::Preferences::GetCString("gfx.vr.osvrUtil.lib");
-  nsAdoptingCString osvrCommonPath = mozilla::Preferences::GetCString("gfx.vr.osvrCommon.lib");
-  nsAdoptingCString osvrClientPath = mozilla::Preferences::GetCString("gfx.vr.osvrClient.lib");
-  nsAdoptingCString osvrClientKitPath = mozilla::Preferences::GetCString("gfx.vr.osvrClientKit.lib");
+  nsAdoptingCString osvrUtilPath = mozilla::Preferences::GetCString("gfx.vr.osvr.utilLibPath");
+  nsAdoptingCString osvrCommonPath = mozilla::Preferences::GetCString("gfx.vr.osvr.commonLibPath");
+  nsAdoptingCString osvrClientPath = mozilla::Preferences::GetCString("gfx.vr.osvr.clientLibPath");
+  nsAdoptingCString osvrClientKitPath = mozilla::Preferences::GetCString("gfx.vr.osvr.clientKitLibPath");
   
   //we need all the libs to be valid
   if ((!osvrUtilPath) || (!osvrCommonPath) || 
       (!osvrClientPath) || (!osvrClientKitPath)){
-      return false;
+    return false;
   }
 
   osvrUtilLib = PR_LoadLibrary(osvrUtilPath.BeginReading());
@@ -83,20 +84,20 @@ bool LoadOSVRRuntime()
   osvrClientKitLib = PR_LoadLibrary(osvrClientKitPath.BeginReading());
 
   if (!osvrUtilLib) {
-      printf_stderr("Failed to load OSVR Util library!\n");
-      return false;
+    printf_stderr("Failed to load OSVR Util library!\n");
+    return false;
   }
   if (!osvrCommonLib) {
-      printf_stderr("Failed to load OSVR Common library!\n");
-      return false;
+    printf_stderr("Failed to load OSVR Common library!\n");
+    return false;
   }
   if (!osvrClientLib) {
-      printf_stderr("Failed to load OSVR Client library!\n");
-      return false;
+    printf_stderr("Failed to load OSVR Client library!\n");
+    return false;
   }
   if (!osvrClientKitLib) {
-      printf_stderr("Failed to load OSVR ClientKit library!\n");
-      return false;
+    printf_stderr("Failed to load OSVR ClientKit library!\n");
+    return false;
   }
 
   // make sure all functions that we'll be using are available
@@ -105,13 +106,13 @@ bool LoadOSVRRuntime()
     if (!osvr_##_x) { printf_stderr("osvr" #_x " symbol missing\n"); goto fail; }       \
       } while (0)
 
-    REQUIRE_FUNCTION(ClientInit);
-    REQUIRE_FUNCTION(ClientShutdown);
-    REQUIRE_FUNCTION(ClientUpdate);
-    REQUIRE_FUNCTION(ClientGetInterface);
-    REQUIRE_FUNCTION(ClientFreeInterface);
-    REQUIRE_FUNCTION(GetOrientationState);
-    REQUIRE_FUNCTION(GetPositionState);
+  REQUIRE_FUNCTION(ClientInit);
+  REQUIRE_FUNCTION(ClientShutdown);
+  REQUIRE_FUNCTION(ClientUpdate);
+  REQUIRE_FUNCTION(ClientGetInterface);
+  REQUIRE_FUNCTION(ClientFreeInterface);
+  REQUIRE_FUNCTION(GetOrientationState);
+  REQUIRE_FUNCTION(GetPositionState);
 
 #undef REQUIRE_FUNCTION
 
@@ -123,22 +124,15 @@ bool LoadOSVRRuntime()
 
 } // namespace
 
-HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context)
+HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface)
   : VRHMDInfo(VRHMDType::OSVR)
-  , m_ctx(context)
+  , m_ctx(context), m_iface(iface)
 {
 
   MOZ_COUNT_CTOR_INHERITED(HMDInfoOSVR, VRHMDInfo);
 
   mDeviceName.AssignLiteral("OSVR HMD");
-
   mSupportedSensorBits = State_Orientation | State_Position;
-  
-  OSVR_ReturnCode ret = osvr_ClientGetInterface(*m_ctx, "/me/head", &m_iface);
-
-  if (ret != OSVR_RETURN_SUCCESS){
-      printf("Couldn't initialize interface\n");
-  }
 
   // @todo add rendering, we skip setting rendering settings such as FOV
 
@@ -147,41 +141,36 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context)
 void
 HMDInfoOSVR::Destroy()
 {
-    //free interface
-    osvr_ClientFreeInterface(*m_ctx, m_iface);
 
-    // destroy non-owning pointer
-    m_ctx = nullptr;
-
-    // @todo unload the libraries here
+  // destroy non-owning pointers
+  m_ctx = nullptr;
+  m_iface = nullptr;
+  // @todo unload the libraries here
 }
 
 bool
 HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
-                      double zNear, double zFar)
+                    double zNear, double zFar)
 {
+  // @todo we'll focus on rendering later 
 
-    // @todo we'll focus on rendering later 
-  
-    return true;
-  
+  return true;  
 }
 
 void
 HMDInfoOSVR::FillDistortionConstants(uint32_t whichEye,
-                                       const IntSize& textureSize,
-                                       const IntRect& eyeViewport,
-                                       const Size& destViewport,
-                                       const Rect& destRect,
-                                       VRDistortionConstants& values)
+                                     const IntSize& textureSize,
+                                     const IntRect& eyeViewport,
+                                     const Size& destViewport,
+                                     const Rect& destRect,
+                                     VRDistortionConstants& values)
 {
-    // @todo take care of that later
+  // @todo take care of that later
 }
 
 bool
 HMDInfoOSVR::StartSensorTracking()
 {
-
   return true;
 }
 
@@ -193,7 +182,7 @@ HMDInfoOSVR::StopSensorTracking()
 void
 HMDInfoOSVR::ZeroSensor()
 {
-  // @todo 
+  // @todo add reset yaw
 }
 
 VRHMDSensorState
@@ -210,16 +199,14 @@ HMDInfoOSVR::GetSensorState(double timeOffset)
 
   OSVR_OrientationState orientation;
   
-  OSVR_ReturnCode ret = osvr_GetOrientationState(m_iface, &timestamp, &orientation);
+  OSVR_ReturnCode ret = osvr_GetOrientationState(*m_iface, &timestamp, &orientation);
 
   result.timestamp = timestamp.seconds;
 
   if (ret != OSVR_RETURN_SUCCESS) {
-      printf_stderr("No orientation state\n");
-  }
-  else{
+    printf_stderr("No orientation state\n");
+  } else {
     result.flags |= State_Orientation;
-
     result.orientation[0] = orientation.data[1];
     result.orientation[1] = orientation.data[2];
     result.orientation[2] = orientation.data[3];
@@ -227,13 +214,11 @@ HMDInfoOSVR::GetSensorState(double timeOffset)
   }
 
   OSVR_PositionState position;
-  ret = osvr_GetPositionState(m_iface, &timestamp, &position);
-  if (ret != OSVR_RETURN_SUCCESS){
-      printf_stderr("No pose state\n");
-  }
-  else{
+  ret = osvr_GetPositionState(*m_iface, &timestamp, &position);
+  if (ret != OSVR_RETURN_SUCCESS) {
+    printf_stderr("No pose state\n");
+  } else {
     result.flags |= State_Position;
-
     result.position[0] = position.data[0];
     result.position[1] = position.data[1];
     result.position[2] = position.data[2];
@@ -268,14 +253,14 @@ HMDInfoOSVR::SubmitFrame(RenderTargetSet *aRTSet)
 bool
 VRHMDManagerOSVR::PlatformInit()
 {
-  if (mOSVRPlatformInitialized){
-      return true;
+  if (mOSVRPlatformInitialized) {
+    return true;
   }
-  if (!gfxPrefs::VREnabled())
-  {
+  if (!gfxPrefs::VREnabled() || 
+      !gfxPrefs::VROSVREnabled()) {
     return false;
   }
-  if (!LoadOSVRRuntime()){
+  if (!LoadOSVRRuntime()) {
     return false;
   }
   mOSVRPlatformInitialized = true;
@@ -288,14 +273,22 @@ VRHMDManagerOSVR::Init()
   // OSVR server should be running in the background
   // It would load plugins and take care of detecting HMDs
   // maybe a @todo to add a check if it's running??
-  if (mOSVRInitialized)
+  if (mOSVRInitialized) {
     return true;
-
+  }
   // get client context
   m_ctx = osvr_ClientInit("com.osvr.webvr", 0);
+
+  m_iface = nullptr;
+  OSVR_ReturnCode ret = osvr_ClientGetInterface(m_ctx, "/me/head", &m_iface);
+
+  if (ret != OSVR_RETURN_SUCCESS) {
+    // couldn't initialize interface
+    return false;
+  }
   
   //initialize HMD with all necessary sensors
-  nsRefPtr<HMDInfoOSVR> hmd = new HMDInfoOSVR(&m_ctx);
+  nsRefPtr<HMDInfoOSVR> hmd = new HMDInfoOSVR(&m_ctx, &m_iface);
   mOSVRHMD = hmd;
 
   mOSVRInitialized = true;
@@ -305,11 +298,17 @@ VRHMDManagerOSVR::Init()
 void
 VRHMDManagerOSVR::Destroy()
 {
-  if (!mOSVRInitialized){ return; }
+  if (!mOSVRInitialized) { 
+    return; 
+  }
 
-  if (mOSVRHMD) { mOSVRHMD->Destroy(); }
+  if (mOSVRHMD) { 
+    mOSVRHMD->Destroy(); 
+  }
 
   mOSVRHMD = nullptr;
+  //free interface
+  osvr_ClientFreeInterface(m_ctx, m_iface);
   osvr_ClientShutdown(m_ctx);    
   mOSVRInitialized = false;
 }
@@ -317,8 +316,8 @@ VRHMDManagerOSVR::Destroy()
 void
 VRHMDManagerOSVR::GetHMDs(nsTArray<nsRefPtr<VRHMDInfo>>& aHMDResult)
 {
-    Init();
-    if (mOSVRHMD){
-        aHMDResult.AppendElement(mOSVRHMD);
-    }
+  Init();
+  if (mOSVRHMD) {
+    aHMDResult.AppendElement(mOSVRHMD);
+  }
 }

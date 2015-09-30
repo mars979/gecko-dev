@@ -24,7 +24,7 @@ namespace impl {
 
 class HMDInfoOSVR : public VRHMDInfo, public VRHMDRenderingSupport {
 public:
-  explicit HMDInfoOSVR(OSVR_ClientContext *context);
+  explicit HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface);
 
   bool SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
               double zNear, double zFar) override;
@@ -65,7 +65,7 @@ protected:
 
   uint32_t mStartCount;
   OSVR_ClientContext *m_ctx;
-  OSVR_ClientInterface m_iface;
+  OSVR_ClientInterface *m_iface;
   
 };
 
@@ -90,6 +90,7 @@ protected:
   bool mOSVRPlatformInitialized;
 
   OSVR_ClientContext m_ctx;
+  OSVR_ClientInterface m_iface;
 };
 
 } // namespace gfx
