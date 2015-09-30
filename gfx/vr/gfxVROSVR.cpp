@@ -28,6 +28,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+using namespace mozilla::layers;
 using namespace mozilla::gfx;
 using namespace mozilla::gfx::impl;
 
@@ -52,6 +53,26 @@ typedef OSVR_ReturnCode(*pfn_osvrGetPositionState)(OSVR_ClientInterface iface,
 typedef OSVR_ReturnCode(*pfn_osvrClientGetDisplay)(OSVR_ClientContext ctx, 
                                                    OSVR_DisplayConfig *disp);
 typedef OSVR_ReturnCode(*pfn_osvrClientFreeDisplay)(OSVR_DisplayConfig disp);
+typedef OSVR_ReturnCode(*pfn_osvrClientGetNumEyesForViewer)(
+                                                    OSVR_DisplayConfig disp, 
+                                                    OSVR_ViewerCount viewer, 
+                                                    OSVR_EyeCount *eyes);
+typedef OSVR_ReturnCode(*pfn_osvrClientGetViewerEyePose)(OSVR_DisplayConfig disp, 
+                                                         OSVR_ViewerCount viewer,
+                                                         OSVR_EyeCount eye, 
+                                                         OSVR_Pose3 *pose);
+typedef OSVR_ReturnCode(*pfn_osvrClientGetDisplayDimensions)(
+                                    OSVR_DisplayConfig disp, 
+                                    OSVR_DisplayInputCount displayInputIndex, 
+                                    OSVR_DisplayDimension *width, 
+                                    OSVR_DisplayDimension *height);
+typedef OSVR_ReturnCode(
+  *pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes)(OSVR_DisplayConfig disp, 
+                                                              OSVR_ViewerCount viewer, 
+                                                              OSVR_EyeCount eye, 
+                                                              OSVR_SurfaceCount surface, 
+                                                              double *left, double *right, 
+                                                              double *bottom, double *top);
 }
 
 static pfn_osvrClientInit osvr_ClientInit = nullptr;
@@ -63,6 +84,11 @@ static pfn_osvrGetOrientationState osvr_GetOrientationState = nullptr;
 static pfn_osvrGetPositionState osvr_GetPositionState = nullptr;
 static pfn_osvrClientGetDisplay osvr_ClientGetDisplay = nullptr;
 static pfn_osvrClientFreeDisplay osvr_ClientFreeDisplay = nullptr;
+static pfn_osvrClientGetNumEyesForViewer osvr_ClientGetNumEyesForViewer = nullptr;
+static pfn_osvrClientGetViewerEyePose osvr_ClientGetViewerEyePose = nullptr;
+static pfn_osvrClientGetDisplayDimensions osvr_ClientGetDisplayDimensions = nullptr;
+static pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes 
+          osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes = nullptr;
 
 bool
 LoadOSVRRuntime()
@@ -120,6 +146,10 @@ LoadOSVRRuntime()
   REQUIRE_FUNCTION(GetPositionState);
   REQUIRE_FUNCTION(ClientGetDisplay);
   REQUIRE_FUNCTION(ClientFreeDisplay);
+  REQUIRE_FUNCTION(ClientGetNumEyesForViewer);
+  REQUIRE_FUNCTION(ClientGetViewerEyePose);
+  REQUIRE_FUNCTION(ClientGetDisplayDimensions);
+  REQUIRE_FUNCTION(ClientGetViewerEyeSurfaceProjectionClippingPlanes);
 
 #undef REQUIRE_FUNCTION
 
@@ -130,6 +160,17 @@ LoadOSVRRuntime()
 }
 
 } // namespace
+
+VRFieldOfView
+SetFromTanRadians(double left, double right, double bottom, double top)
+{
+  VRFieldOfView fovInfo;
+  fovInfo.leftDegrees = atan(left) * 180.0 / M_PI;
+  fovInfo.rightDegrees = atan(right) * 180.0 / M_PI;
+  fovInfo.upDegrees = atan(top) * 180.0 / M_PI;
+  fovInfo.downDegrees = atan(bottom) * 180.0 / M_PI;
+  return fovInfo;
+}
 
 HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface,
                          OSVR_DisplayConfig *display)
@@ -142,7 +183,31 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *ifac
   mDeviceName.AssignLiteral("OSVR HMD");
   mSupportedSensorBits = State_Orientation | State_Position;
 
-  // @todo add rendering, we skip setting rendering settings such as FOV
+  // @todo OSVR display topology allows for more than one viewer
+  // will assume only one viewer for now (most likely stay that way)
+
+  OSVR_EyeCount numEyes;
+  osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
+
+  for (uint8_t eye = 0; eye < numEyes; eye++){
+    double left, right, bottom, top;
+    // @todo for now there is only one surface per eye
+    osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes(
+      *m_display, 0, eye, 0, &left, &right, &bottom, &top);
+    mRecommendedEyeFOV[eye] = mMaximumEyeFOV[eye] = SetFromTanRadians(left, right, bottom, top);
+    
+  }
+
+  SetFOV(mRecommendedEyeFOV[Eye_Left], mRecommendedEyeFOV[Eye_Right], 0.01, 10000.0);
+
+  uint32_t xcoord = 0;
+  // @todo Assuming there is only one display input for now
+  // however, it's possible to have more than one (dSight with 2 HDMI inputs)
+  OSVR_DisplayDimension width, height;
+  osvr_ClientGetDisplayDimensions(*m_display, 0, &width, &height);
+  
+  mScreen = VRHMDManager::MakeFakeScreen(xcoord, 0, std::max(width, height), 
+                                          std::min(width, height));
 
 }
 
