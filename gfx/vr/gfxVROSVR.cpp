@@ -34,56 +34,46 @@ using namespace mozilla::gfx::impl;
 
 namespace {
 // need to typedef functions that will be used in the code below
-extern "C"{
-typedef OSVR_ClientContext(*pfn_osvrClientInit) (const char applicationIdentifier[], 
-                                                 uint32_t flags);
-typedef OSVR_ReturnCode(*pfn_osvrClientShutdown)(OSVR_ClientContext ctx);
-typedef OSVR_ReturnCode(*pfn_osvrClientUpdate)(OSVR_ClientContext ctx);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetInterface)(OSVR_ClientContext ctx, 
-                                                     const char path[],
-                                                     OSVR_ClientInterface *iface);
-typedef OSVR_ReturnCode(*pfn_osvrClientFreeInterface)(OSVR_ClientContext ctx,
-                                                      OSVR_ClientInterface iface);
-typedef OSVR_ReturnCode(*pfn_osvrGetOrientationState)(OSVR_ClientInterface iface, 
-                                                      OSVR_TimeValue *timestamp, 
-                                                      OSVR_OrientationState *state);
-typedef OSVR_ReturnCode(*pfn_osvrGetPositionState)(OSVR_ClientInterface iface,
-                                                   OSVR_TimeValue *timestamp,
-                                                   OSVR_PositionState *state);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetDisplay)(OSVR_ClientContext ctx, 
-                                                   OSVR_DisplayConfig *disp);
-typedef OSVR_ReturnCode(*pfn_osvrClientFreeDisplay)(OSVR_DisplayConfig disp);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetNumEyesForViewer)(
-                                                    OSVR_DisplayConfig disp, 
-                                                    OSVR_ViewerCount viewer, 
-                                                    OSVR_EyeCount *eyes);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetViewerEyePose)(OSVR_DisplayConfig disp, 
-                                                         OSVR_ViewerCount viewer,
-                                                         OSVR_EyeCount eye, 
-                                                         OSVR_Pose3 *pose);
-typedef OSVR_ReturnCode(*pfn_osvrClientGetDisplayDimensions)(
-                                    OSVR_DisplayConfig disp, 
-                                    OSVR_DisplayInputCount displayInputIndex, 
-                                    OSVR_DisplayDimension *width, 
-                                    OSVR_DisplayDimension *height);
-typedef OSVR_ReturnCode(
-  *pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes)(OSVR_DisplayConfig disp, 
-                                                              OSVR_ViewerCount viewer, 
-                                                              OSVR_EyeCount eye, 
-                                                              OSVR_SurfaceCount surface, 
-                                                              double *left, double *right, 
-                                                              double *bottom, double *top);
-typedef OSVR_ReturnCode
-  (*pfn_osvrClientGetRelativeViewportForViewerEyeSurface)(
-    OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
-    OSVR_SurfaceCount surface, OSVR_ViewportDimension *left,
-    OSVR_ViewportDimension *bottom, OSVR_ViewportDimension *width,
-    OSVR_ViewportDimension *height);
-typedef OSVR_ReturnCode
-  (*pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf)(
-    OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
-    OSVR_SurfaceCount surface, float near, float far,
-    OSVR_MatrixConventions flags, float *matrix);
+extern "C" {
+typedef OSVR_ClientContext (*pfn_osvrClientInit)(
+  const char applicationIdentifier[], uint32_t flags);
+typedef OSVR_ReturnCode (*pfn_osvrClientShutdown)(OSVR_ClientContext ctx);
+typedef OSVR_ReturnCode (*pfn_osvrClientUpdate)(OSVR_ClientContext ctx);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetInterface)(
+  OSVR_ClientContext ctx, const char path[], OSVR_ClientInterface* iface);
+typedef OSVR_ReturnCode (*pfn_osvrClientFreeInterface)(
+  OSVR_ClientContext ctx, OSVR_ClientInterface iface);
+typedef OSVR_ReturnCode (*pfn_osvrGetOrientationState)(
+  OSVR_ClientInterface iface, OSVR_TimeValue* timestamp,
+  OSVR_OrientationState* state);
+typedef OSVR_ReturnCode (*pfn_osvrGetPositionState)(OSVR_ClientInterface iface,
+                                                    OSVR_TimeValue* timestamp,
+                                                    OSVR_PositionState* state);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetDisplay)(OSVR_ClientContext ctx,
+                                                    OSVR_DisplayConfig* disp);
+typedef OSVR_ReturnCode (*pfn_osvrClientFreeDisplay)(OSVR_DisplayConfig disp);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetNumEyesForViewer)(
+  OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount* eyes);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetViewerEyePose)(
+  OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+  OSVR_Pose3* pose);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetDisplayDimensions)(
+  OSVR_DisplayConfig disp, OSVR_DisplayInputCount displayInputIndex,
+  OSVR_DisplayDimension* width, OSVR_DisplayDimension* height);
+typedef OSVR_ReturnCode (
+  *pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes)(
+  OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+  OSVR_SurfaceCount surface, double* left, double* right, double* bottom,
+  double* top);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetRelativeViewportForViewerEyeSurface)(
+  OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+  OSVR_SurfaceCount surface, OSVR_ViewportDimension* left,
+  OSVR_ViewportDimension* bottom, OSVR_ViewportDimension* width,
+  OSVR_ViewportDimension* height);
+typedef OSVR_ReturnCode (*pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf)(
+  OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+  OSVR_SurfaceCount surface, float near, float far,
+  OSVR_MatrixConventions flags, float* matrix);
 }
 
 static pfn_osvrClientInit osvr_ClientInit = nullptr;
@@ -95,32 +85,38 @@ static pfn_osvrGetOrientationState osvr_GetOrientationState = nullptr;
 static pfn_osvrGetPositionState osvr_GetPositionState = nullptr;
 static pfn_osvrClientGetDisplay osvr_ClientGetDisplay = nullptr;
 static pfn_osvrClientFreeDisplay osvr_ClientFreeDisplay = nullptr;
-static pfn_osvrClientGetNumEyesForViewer osvr_ClientGetNumEyesForViewer = nullptr;
+static pfn_osvrClientGetNumEyesForViewer osvr_ClientGetNumEyesForViewer =
+  nullptr;
 static pfn_osvrClientGetViewerEyePose osvr_ClientGetViewerEyePose = nullptr;
-static pfn_osvrClientGetDisplayDimensions osvr_ClientGetDisplayDimensions = nullptr;
-static pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes 
-          osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes = nullptr;
+static pfn_osvrClientGetDisplayDimensions osvr_ClientGetDisplayDimensions =
+  nullptr;
+static pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes
+  osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes = nullptr;
 static pfn_osvrClientGetRelativeViewportForViewerEyeSurface
-          osvr_ClientGetRelativeViewportForViewerEyeSurface = nullptr;
+  osvr_ClientGetRelativeViewportForViewerEyeSurface = nullptr;
 static pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf
-          osvr_ClientGetViewerEyeSurfaceProjectionMatrixf = nullptr;
+  osvr_ClientGetViewerEyeSurfaceProjectionMatrixf = nullptr;
 
 bool
 LoadOSVRRuntime()
 {
-  static PRLibrary *osvrUtilLib = nullptr;
-  static PRLibrary *osvrCommonLib = nullptr;
-  static PRLibrary *osvrClientLib = nullptr;
-  static PRLibrary *osvrClientKitLib = nullptr;
+  static PRLibrary* osvrUtilLib = nullptr;
+  static PRLibrary* osvrCommonLib = nullptr;
+  static PRLibrary* osvrClientLib = nullptr;
+  static PRLibrary* osvrClientKitLib = nullptr;
   //this looks up the path in the about:config setting, from greprefs.js or modules\libpref\init\all.js
-  nsAdoptingCString osvrUtilPath = mozilla::Preferences::GetCString("gfx.vr.osvr.utilLibPath");
-  nsAdoptingCString osvrCommonPath = mozilla::Preferences::GetCString("gfx.vr.osvr.commonLibPath");
-  nsAdoptingCString osvrClientPath = mozilla::Preferences::GetCString("gfx.vr.osvr.clientLibPath");
-  nsAdoptingCString osvrClientKitPath = mozilla::Preferences::GetCString("gfx.vr.osvr.clientKitLibPath");
-  
+  nsAdoptingCString osvrUtilPath =
+    mozilla::Preferences::GetCString("gfx.vr.osvr.utilLibPath");
+  nsAdoptingCString osvrCommonPath =
+    mozilla::Preferences::GetCString("gfx.vr.osvr.commonLibPath");
+  nsAdoptingCString osvrClientPath =
+    mozilla::Preferences::GetCString("gfx.vr.osvr.clientLibPath");
+  nsAdoptingCString osvrClientKitPath =
+    mozilla::Preferences::GetCString("gfx.vr.osvr.clientKitLibPath");
+
   //we need all the libs to be valid
-  if ((!osvrUtilPath) || (!osvrCommonPath) || 
-      (!osvrClientPath) || (!osvrClientKitPath)){
+  if ((!osvrUtilPath) || (!osvrCommonPath) || (!osvrClientPath) ||
+      (!osvrClientKitPath)) {
     return false;
   }
 
@@ -146,11 +142,16 @@ LoadOSVRRuntime()
     return false;
   }
 
-  // make sure all functions that we'll be using are available
-#define REQUIRE_FUNCTION(_x) do { \
-    *(void **)&osvr_##_x = (void *) PR_FindSymbol(osvrClientKitLib, "osvr" #_x);                \
-    if (!osvr_##_x) { printf_stderr("osvr" #_x " symbol missing\n"); goto fail; }       \
-      } while (0)
+// make sure all functions that we'll be using are available
+#define REQUIRE_FUNCTION(_x)                                                   \
+  do {                                                                         \
+    *(void**) & osvr_##_x =                                                    \
+      (void*)PR_FindSymbol(osvrClientKitLib, "osvr" #_x);                      \
+    if (!osvr_##_x) {                                                          \
+      printf_stderr("osvr" #_x " symbol missing\n");                           \
+      goto fail;                                                               \
+    }                                                                          \
+  } while (0)
 
   REQUIRE_FUNCTION(ClientInit);
   REQUIRE_FUNCTION(ClientShutdown);
@@ -172,7 +173,7 @@ LoadOSVRRuntime()
 
   return true;
 
- fail:
+fail:
   return false;
 }
 
@@ -189,10 +190,13 @@ SetFromTanRadians(double left, double right, double bottom, double top)
   return fovInfo;
 }
 
-HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface,
-                         OSVR_DisplayConfig *display)
+HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext* context,
+                         OSVR_ClientInterface* iface,
+                         OSVR_DisplayConfig* display)
   : VRHMDInfo(VRHMDType::OSVR)
-  , m_ctx(context), m_iface(iface), m_display(display)
+  , m_ctx(context)
+  , m_iface(iface)
+  , m_display(display)
 {
 
   MOZ_COUNT_CTOR_INHERITED(HMDInfoOSVR, VRHMDInfo);
@@ -206,26 +210,26 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *ifac
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
 
-  for (uint8_t eye = 0; eye < numEyes; eye++){
+  for (uint8_t eye = 0; eye < numEyes; eye++) {
     double left, right, bottom, top;
     // @todo for now there is only one surface per eye
     osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes(
       *m_display, 0, eye, 0, &left, &right, &bottom, &top);
-    mRecommendedEyeFOV[eye] = mMaximumEyeFOV[eye] = SetFromTanRadians(left, right, bottom, top);
-    
+    mRecommendedEyeFOV[eye] = mMaximumEyeFOV[eye] =
+      SetFromTanRadians(left, right, bottom, top);
   }
 
-  SetFOV(mRecommendedEyeFOV[Eye_Left], mRecommendedEyeFOV[Eye_Right], 0.01, 10000.0);
+  SetFOV(mRecommendedEyeFOV[Eye_Left], mRecommendedEyeFOV[Eye_Right], 0.01,
+         10000.0);
 
   uint32_t xcoord = 0;
   // @todo Assuming there is only one display input for now
   // however, it's possible to have more than one (dSight with 2 HDMI inputs)
   OSVR_DisplayDimension width, height;
   osvr_ClientGetDisplayDimensions(*m_display, 0, &width, &height);
-  
-  mScreen = VRHMDManager::MakeFakeScreen(xcoord, 0, std::max(width, height), 
-                                          std::min(width, height));
 
+  mScreen = VRHMDManager::MakeFakeScreen(xcoord, 0, std::max(width, height),
+                                         std::min(width, height));
 }
 
 void
@@ -240,16 +244,17 @@ HMDInfoOSVR::Destroy()
 }
 
 bool
-HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
-                    double zNear, double zFar)
+HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft,
+                    const VRFieldOfView& aFOVRight, double zNear, double zFar)
 {
-  
+
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
 
-  for (uint8_t eye; eye < numEyes; eye++){
+  for (uint8_t eye; eye < numEyes; eye++) {
     OSVR_ViewportDimension l, b, w, h;
-    osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l, &b, &w, &h);
+    osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l,
+                                                      &b, &w, &h);
     mEyeResolution.width = w;
     mEyeResolution.height = h;
 
@@ -260,9 +265,8 @@ HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRigh
     mEyeTranslation[eye].y = eyePose.translation.data[1];
     mEyeTranslation[eye].z = eyePose.translation.data[2];
 
-    mEyeProjectionMatrix[eye] = mEyeFOV[eye].ConstructProjectionMatrix(zNear,zFar, true);
-
-
+    mEyeProjectionMatrix[eye] =
+      mEyeFOV[eye].ConstructProjectionMatrix(zNear, zFar, true);
   }
 
   mConfiguration.hmdType = mType;
@@ -270,16 +274,13 @@ HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRigh
   mConfiguration.fov[Eye_Left] = aFOVLeft;
   mConfiguration.fov[Eye_Right] = aFOVRight;
 
-  return true;  
+  return true;
 }
 
 void
-HMDInfoOSVR::FillDistortionConstants(uint32_t whichEye,
-                                     const IntSize& textureSize,
-                                     const IntRect& eyeViewport,
-                                     const Size& destViewport,
-                                     const Rect& destRect,
-                                     VRDistortionConstants& values)
+HMDInfoOSVR::FillDistortionConstants(
+  uint32_t whichEye, const IntSize& textureSize, const IntRect& eyeViewport,
+  const Size& destViewport, const Rect& destRect, VRDistortionConstants& values)
 {
   // @todo take care of that later
 }
@@ -304,7 +305,7 @@ HMDInfoOSVR::ZeroSensor()
 VRHMDSensorState
 HMDInfoOSVR::GetSensorState(double timeOffset)
 {
-  
+
   //update client context before anything
   //this usually goes into app's mainloop
   osvr_ClientUpdate(*m_ctx);
@@ -314,8 +315,9 @@ HMDInfoOSVR::GetSensorState(double timeOffset)
   result.Clear();
 
   OSVR_OrientationState orientation;
-  
-  OSVR_ReturnCode ret = osvr_GetOrientationState(*m_iface, &timestamp, &orientation);
+
+  OSVR_ReturnCode ret =
+    osvr_GetOrientationState(*m_iface, &timestamp, &orientation);
 
   result.timestamp = timestamp.seconds;
 
@@ -339,15 +341,15 @@ HMDInfoOSVR::GetSensorState(double timeOffset)
     result.position[1] = position.data[1];
     result.position[2] = position.data[2];
   }
-  
+
   return result;
 }
 
 // @todo add Rendering later
 
-
 already_AddRefed<VRHMDRenderingSupport::RenderTargetSet>
-HMDInfoOSVR::CreateRenderTargetSet(layers::Compositor *aCompositor, const IntSize& aSize)
+HMDInfoOSVR::CreateRenderTargetSet(layers::Compositor* aCompositor,
+                                   const IntSize& aSize)
 {
   // @todo add Rendering later
 
@@ -355,13 +357,13 @@ HMDInfoOSVR::CreateRenderTargetSet(layers::Compositor *aCompositor, const IntSiz
 }
 
 void
-HMDInfoOSVR::DestroyRenderTargetSet(RenderTargetSet *aRTSet)
+HMDInfoOSVR::DestroyRenderTargetSet(RenderTargetSet* aRTSet)
 {
   // @todo add Rendering later
 }
 
 void
-HMDInfoOSVR::SubmitFrame(RenderTargetSet *aRTSet)
+HMDInfoOSVR::SubmitFrame(RenderTargetSet* aRTSet)
 {
   // @todo add Rendering later
 }
@@ -372,8 +374,7 @@ VRHMDManagerOSVR::PlatformInit()
   if (mOSVRPlatformInitialized) {
     return true;
   }
-  if (!gfxPrefs::VREnabled() || 
-      !gfxPrefs::VROSVREnabled()) {
+  if (!gfxPrefs::VREnabled() || !gfxPrefs::VROSVREnabled()) {
     return false;
   }
   if (!LoadOSVRRuntime()) {
@@ -405,11 +406,11 @@ VRHMDManagerOSVR::Init()
 
   ret = osvr_ClientGetDisplay(m_ctx, &m_display);
 
-  if (ret != OSVR_RETURN_SUCCESS){
+  if (ret != OSVR_RETURN_SUCCESS) {
     // couldn't get display config
     return false;
   }
-  
+
   //initialize HMD with all necessary sensors
   nsRefPtr<HMDInfoOSVR> hmd = new HMDInfoOSVR(&m_ctx, &m_iface, &m_display);
   mOSVRHMD = hmd;
@@ -421,19 +422,19 @@ VRHMDManagerOSVR::Init()
 void
 VRHMDManagerOSVR::Destroy()
 {
-  if (!mOSVRInitialized) { 
-    return; 
+  if (!mOSVRInitialized) {
+    return;
   }
 
-  if (mOSVRHMD) { 
-    mOSVRHMD->Destroy(); 
+  if (mOSVRHMD) {
+    mOSVRHMD->Destroy();
   }
 
   mOSVRHMD = nullptr;
   //free interface
   osvr_ClientFreeInterface(m_ctx, m_iface);
   osvr_ClientFreeDisplay(m_display);
-  osvr_ClientShutdown(m_ctx);    
+  osvr_ClientShutdown(m_ctx);
   mOSVRInitialized = false;
 }
 
