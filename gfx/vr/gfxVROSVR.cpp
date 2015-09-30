@@ -73,6 +73,17 @@ typedef OSVR_ReturnCode(
                                                               OSVR_SurfaceCount surface, 
                                                               double *left, double *right, 
                                                               double *bottom, double *top);
+typedef OSVR_ReturnCode
+  (*pfn_osvrClientGetRelativeViewportForViewerEyeSurface)(
+    OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+    OSVR_SurfaceCount surface, OSVR_ViewportDimension *left,
+    OSVR_ViewportDimension *bottom, OSVR_ViewportDimension *width,
+    OSVR_ViewportDimension *height);
+typedef OSVR_ReturnCode
+  (*pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf)(
+    OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
+    OSVR_SurfaceCount surface, float near, float far,
+    OSVR_MatrixConventions flags, float *matrix);
 }
 
 static pfn_osvrClientInit osvr_ClientInit = nullptr;
@@ -89,6 +100,10 @@ static pfn_osvrClientGetViewerEyePose osvr_ClientGetViewerEyePose = nullptr;
 static pfn_osvrClientGetDisplayDimensions osvr_ClientGetDisplayDimensions = nullptr;
 static pfn_osvrClientGetViewerEyeSurfaceProjectionClippingPlanes 
           osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes = nullptr;
+static pfn_osvrClientGetRelativeViewportForViewerEyeSurface
+          osvr_ClientGetRelativeViewportForViewerEyeSurface = nullptr;
+static pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf
+          osvr_ClientGetViewerEyeSurfaceProjectionMatrixf = nullptr;
 
 bool
 LoadOSVRRuntime()
@@ -150,6 +165,8 @@ LoadOSVRRuntime()
   REQUIRE_FUNCTION(ClientGetViewerEyePose);
   REQUIRE_FUNCTION(ClientGetDisplayDimensions);
   REQUIRE_FUNCTION(ClientGetViewerEyeSurfaceProjectionClippingPlanes);
+  REQUIRE_FUNCTION(ClientGetRelativeViewportForViewerEyeSurface);
+  REQUIRE_FUNCTION(ClientGetViewerEyeSurfaceProjectionMatrixf);
 
 #undef REQUIRE_FUNCTION
 
@@ -226,7 +243,32 @@ bool
 HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
                     double zNear, double zFar)
 {
-  // @todo we'll focus on rendering later 
+  
+  OSVR_EyeCount numEyes;
+  osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
+
+  for (uint8_t eye; eye < numEyes; eye++){
+    OSVR_ViewportDimension l, b, w, h;
+    osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l, &b, &w, &h);
+    mEyeResolution.width = w;
+    mEyeResolution.height = h;
+
+    OSVR_Pose3 eyePose;
+    osvr_ClientGetViewerEyePose(*m_display, 0, eye, &eyePose);
+
+    mEyeTranslation[eye].x = eyePose.translation.data[0];
+    mEyeTranslation[eye].y = eyePose.translation.data[1];
+    mEyeTranslation[eye].z = eyePose.translation.data[2];
+
+    mEyeProjectionMatrix[eye] = mEyeFOV[eye].ConstructProjectionMatrix(zNear,zFar, true);
+
+
+  }
+
+  mConfiguration.hmdType = mType;
+  mConfiguration.value = 0;
+  mConfiguration.fov[Eye_Left] = aFOVLeft;
+  mConfiguration.fov[Eye_Right] = aFOVRight;
 
   return true;  
 }
