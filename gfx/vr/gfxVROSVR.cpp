@@ -49,6 +49,9 @@ typedef OSVR_ReturnCode(*pfn_osvrGetOrientationState)(OSVR_ClientInterface iface
 typedef OSVR_ReturnCode(*pfn_osvrGetPositionState)(OSVR_ClientInterface iface,
                                                    OSVR_TimeValue *timestamp,
                                                    OSVR_PositionState *state);
+typedef OSVR_ReturnCode(*pfn_osvrClientGetDisplay)(OSVR_ClientContext ctx, 
+                                                   OSVR_DisplayConfig *disp);
+typedef OSVR_ReturnCode(*pfn_osvrClientFreeDisplay)(OSVR_DisplayConfig disp);
 }
 
 static pfn_osvrClientInit osvr_ClientInit = nullptr;
@@ -58,6 +61,8 @@ static pfn_osvrClientGetInterface osvr_ClientGetInterface = nullptr;
 static pfn_osvrClientFreeInterface osvr_ClientFreeInterface = nullptr;
 static pfn_osvrGetOrientationState osvr_GetOrientationState = nullptr;
 static pfn_osvrGetPositionState osvr_GetPositionState = nullptr;
+static pfn_osvrClientGetDisplay osvr_ClientGetDisplay = nullptr;
+static pfn_osvrClientFreeDisplay osvr_ClientFreeDisplay = nullptr;
 
 bool
 LoadOSVRRuntime()
@@ -113,6 +118,8 @@ LoadOSVRRuntime()
   REQUIRE_FUNCTION(ClientFreeInterface);
   REQUIRE_FUNCTION(GetOrientationState);
   REQUIRE_FUNCTION(GetPositionState);
+  REQUIRE_FUNCTION(ClientGetDisplay);
+  REQUIRE_FUNCTION(ClientFreeDisplay);
 
 #undef REQUIRE_FUNCTION
 
@@ -124,9 +131,10 @@ LoadOSVRRuntime()
 
 } // namespace
 
-HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface)
+HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface,
+                         OSVR_DisplayConfig *display)
   : VRHMDInfo(VRHMDType::OSVR)
-  , m_ctx(context), m_iface(iface)
+  , m_ctx(context), m_iface(iface), m_display(display)
 {
 
   MOZ_COUNT_CTOR_INHERITED(HMDInfoOSVR, VRHMDInfo);
@@ -145,6 +153,7 @@ HMDInfoOSVR::Destroy()
   // destroy non-owning pointers
   m_ctx = nullptr;
   m_iface = nullptr;
+  m_display = nullptr;
   // @todo unload the libraries here
 }
 
@@ -286,9 +295,16 @@ VRHMDManagerOSVR::Init()
     // couldn't initialize interface
     return false;
   }
+
+  ret = osvr_ClientGetDisplay(m_ctx, &m_display);
+
+  if (ret != OSVR_RETURN_SUCCESS){
+    // couldn't get display config
+    return false;
+  }
   
   //initialize HMD with all necessary sensors
-  nsRefPtr<HMDInfoOSVR> hmd = new HMDInfoOSVR(&m_ctx, &m_iface);
+  nsRefPtr<HMDInfoOSVR> hmd = new HMDInfoOSVR(&m_ctx, &m_iface, &m_display);
   mOSVRHMD = hmd;
 
   mOSVRInitialized = true;
@@ -309,6 +325,7 @@ VRHMDManagerOSVR::Destroy()
   mOSVRHMD = nullptr;
   //free interface
   osvr_ClientFreeInterface(m_ctx, m_iface);
+  osvr_ClientFreeDisplay(m_display);
   osvr_ClientShutdown(m_ctx);    
   mOSVRInitialized = false;
 }

@@ -17,6 +17,7 @@
 #include "gfxVR.h"
 
 #include <osvr/ClientKit/ClientKitC.h>
+#include <osvr/ClientKit/DisplayC.h>
 
 namespace mozilla {
 namespace gfx {
@@ -24,7 +25,8 @@ namespace impl {
 
 class HMDInfoOSVR : public VRHMDInfo, public VRHMDRenderingSupport {
 public:
-  explicit HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface);
+  explicit HMDInfoOSVR(OSVR_ClientContext *context, OSVR_ClientInterface *iface,
+                       OSVR_DisplayConfig *display);
 
   bool SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRight,
               double zNear, double zFar) override;
@@ -66,6 +68,7 @@ protected:
   uint32_t mStartCount;
   OSVR_ClientContext *m_ctx;
   OSVR_ClientInterface *m_iface;
+  OSVR_DisplayConfig *m_display;
   
 };
 
@@ -91,6 +94,7 @@ protected:
 
   OSVR_ClientContext m_ctx;
   OSVR_ClientInterface m_iface;
+  OSVR_DisplayConfig m_display;
 };
 
 } // namespace gfx
