@@ -33,6 +33,5 @@
 #include <osvr/ClientKit/InterfaceC.h>
 #include <osvr/ClientKit/InterfaceCallbackC.h>
 #include <osvr/ClientKit/SystemCallbackC.h>
-#include <osvr/ClientKit/InterfaceStateC.h>
 
 #endif

@@ -36,6 +36,7 @@
 #include <osvr/Util/AnnotationMacrosC.h>
 #include <osvr/Util/PlatformConfig.h>
 #include <osvr/Util/StdInt.h>
+#include <osvr/Util/BoolC.h>
 
 /* Library/third-party includes */
 /* none */
@@ -49,10 +50,13 @@ OSVR_EXTERN_C_BEGIN
     @ingroup Util
 
     This provides a level of interoperability with struct timeval on systems
-   with that facility. It provides a neutral representation with sufficiently
-   large types.
+    with that facility. It provides a neutral representation with sufficiently
+    large types.
 
-    For C++ code, use of boost::chrono instead is recommended.
+    For C++ code, use of std::chrono or boost::chrono instead is recommended.
+
+    Note that these time values may not necessarily correlate between processes
+   so should not be used to estimate or measure latency, etc.
 
     @{
 */
@@ -156,8 +160,41 @@ osvrTimeValueDifference(OSVR_INOUT_PTR OSVR_TimeValue *tvA,
                         OSVR_IN_PTR const OSVR_TimeValue *tvB)
     OSVR_FUNC_NONNULL((1, 2));
 
-/** @} */
+/** @brief  Compares two time values (assumed to be normalized), returning the
+    same values as strcmp
+
+    @return <0 if A is earlier than B, 0 if they are the same, and >0 if A is
+   later than B.
+*/
+OSVR_UTIL_EXPORT int osvrTimeValueCmp(OSVR_IN_PTR const OSVR_TimeValue *tvA,
+                                      OSVR_IN_PTR const OSVR_TimeValue *tvB)
+    OSVR_FUNC_NONNULL((1, 2));
 
 OSVR_EXTERN_C_END
+
+/** @brief True if A is later than B */
+OSVR_INLINE OSVR_CBool osvrTimeValueGreater(
+    OSVR_IN_PTR const OSVR_TimeValue *tvA,
+    OSVR_IN_PTR const OSVR_TimeValue *tvB) {
+    if (!tvA || !tvB) {
+        return OSVR_FALSE;
+    }
+    return ((tvA->seconds > tvB->seconds) ||
+            (tvA->seconds == tvB->seconds &&
+             tvA->microseconds > tvB->microseconds))
+               ? OSVR_TRUE
+               : OSVR_FALSE;
+}
+
+#ifdef __cplusplus
+/// @overload
+inline bool osvrTimeValueGreater(const OSVR_TimeValue &tvA,
+                                 const OSVR_TimeValue &tvB) {
+    return (tvA.seconds > tvB.seconds) ||
+           (tvA.seconds == tvB.seconds && tvA.microseconds > tvB.microseconds);
+}
+#endif
+
+/** @} */
 
 #endif
