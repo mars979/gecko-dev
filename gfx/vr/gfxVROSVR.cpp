@@ -209,12 +209,15 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext* context,
 
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
+  printf("Number of eyes is %d\n", int(numEyes));
 
   for (uint8_t eye = 0; eye < numEyes; eye++) {
     double left, right, bottom, top;
     // @todo for now there is only one surface per eye
     osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes(
       *m_display, 0, eye, 0, &left, &right, &bottom, &top);
+    printf("Clipping planes for eye %d are %f, %f, %f, %f\n", int(eye), left,
+           right, bottom, top);
     mRecommendedEyeFOV[eye] = mMaximumEyeFOV[eye] =
       SetFromTanRadians(left, right, bottom, top);
   }
@@ -248,19 +251,22 @@ HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft,
                     const VRFieldOfView& aFOVRight, double zNear, double zFar)
 {
 
+  printf("Inside setFOV\n");
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
-
+  printf("Number of eyes for viewer 0 is %d", int(numEyes));
   for (uint8_t eye; eye < numEyes; eye++) {
     OSVR_ViewportDimension l, b, w, h;
     osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l,
                                                       &b, &w, &h);
     mEyeResolution.width = w;
     mEyeResolution.height = h;
-
+    printf("Got viewport dimensions as %f, %f, %f, %f \n", l, b, w, h);
     OSVR_Pose3 eyePose;
     osvr_ClientGetViewerEyePose(*m_display, 0, eye, &eyePose);
-
+    printf("Got viewer eye pose x:%f, y:%f, z:%f \n",
+           eyePose.translation.data[0], eyePose.translation.data[1],
+           eyePose.translation.data[2]);
     mEyeTranslation[eye].x = eyePose.translation.data[0];
     mEyeTranslation[eye].y = eyePose.translation.data[1];
     mEyeTranslation[eye].z = eyePose.translation.data[2];
@@ -345,13 +351,69 @@ HMDInfoOSVR::GetSensorState(double timeOffset)
   return result;
 }
 
-// @todo add Rendering later
+struct RenderTargetSetOSVR : public VRHMDRenderingSupport::RenderTargetSet
+{
+  RenderTargetSetOSVR(Compositor* aCompositor, const IntSize& aSize,
+                      HMDInfoOSVR* aHMD)
+  {
+
+    size = aSize;
+    currentRenderTarget = 0;
+    mCompositorBackend = aCompositor->GetBackendType();
+
+    const uint32_t numTargets = 2;
+    renderTargets.SetLength(numTargets);
+    for (uint32_t i = 0; i < numTargets; ++i) {
+      renderTargets[i] = aCompositor->CreateRenderTarget(
+        IntRect(0, 0, aSize.width, aSize.height), INIT_MODE_NONE);
+    }
+  }
+
+  bool Valid() const
+  {
+    for (uint32_t i = 0; i < renderTargets.Length(); ++i) {
+      if (!renderTargets[i])
+        return false;
+    }
+  }
+
+  already_AddRefed<CompositingRenderTarget> GetNextRenderTarget() override
+  {
+    currentRenderTarget = (currentRenderTarget + 1) % renderTargets.Length();
+    renderTargets[currentRenderTarget]->ClearOnBind();
+    nsRefPtr<CompositingRenderTarget> rt = renderTargets[currentRenderTarget];
+    return rt.forget();
+  }
+
+  /// @todo, should I check for valid ClientContext here?
+  void Destroy() {}
+
+  ~RenderTargetSetOSVR() {}
+
+  LayersBackend mCompositorBackend;
+};
 
 already_AddRefed<VRHMDRenderingSupport::RenderTargetSet>
 HMDInfoOSVR::CreateRenderTargetSet(layers::Compositor* aCompositor,
                                    const IntSize& aSize)
 {
-  // @todo add Rendering later
+#ifdef XP_WIN
+  if (aCompositor->GetBackendType() == layers::LayersBackend::LAYERS_D3D11) {
+    layers::CompositorD3D11* comp11 =
+      static_cast<layers::CompositorD3D11*>(aCompositor);
+
+    nsRefPtr<RenderTargetSetOSVR> rts =
+      new RenderTargetSetOSVR(comp11, aSize, this);
+    if (!rts->Valid()) {
+      return nullptr;
+    }
+
+    return rts.forget();
+  }
+#endif
+
+  if (aCompositor->GetBackendType() == layers::LayersBackend::LAYERS_OPENGL) {
+  }
 
   return nullptr;
 }
@@ -359,13 +421,16 @@ HMDInfoOSVR::CreateRenderTargetSet(layers::Compositor* aCompositor,
 void
 HMDInfoOSVR::DestroyRenderTargetSet(RenderTargetSet* aRTSet)
 {
-  // @todo add Rendering later
+  RenderTargetSetOSVR* rts = static_cast<RenderTargetSetOSVR*>(aRTSet);
+  rts->Destroy();
 }
 
 void
 HMDInfoOSVR::SubmitFrame(RenderTargetSet* aRTSet)
 {
-  // @todo add Rendering later
+  RenderTargetSetOSVR* rts = static_cast<RenderTargetSetOSVR*>(aRTSet);
+
+  /// @todo, add renderManager code to submit frame
 }
 
 bool
@@ -408,6 +473,7 @@ VRHMDManagerOSVR::Init()
 
   if (ret != OSVR_RETURN_SUCCESS) {
     // couldn't get display config
+    printf("Couldn't get a display object \n");
     return false;
   }
 
