@@ -255,7 +255,7 @@ HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft,
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
   printf("Number of eyes for viewer 0 is %d", int(numEyes));
-  for (uint8_t eye; eye < numEyes; eye++) {
+  for (uint8_t eye = 0; eye < numEyes; eye++) {
     OSVR_ViewportDimension l, b, w, h;
     osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l,
                                                       &b, &w, &h);
