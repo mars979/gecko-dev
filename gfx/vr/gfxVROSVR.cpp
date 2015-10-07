@@ -209,17 +209,14 @@ HMDInfoOSVR::HMDInfoOSVR(OSVR_ClientContext* context,
 
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
-  printf("Number of eyes is %d\n", int(numEyes));
 
   for (uint8_t eye = 0; eye < numEyes; eye++) {
     double left, right, bottom, top;
     // @todo for now there is only one surface per eye
     osvr_ClientGetViewerEyeSurfaceProjectionClippingPlanes(
       *m_display, 0, eye, 0, &left, &right, &bottom, &top);
-    printf("Clipping planes for eye %d are %f, %f, %f, %f\n", int(eye), left,
-           right, bottom, top);
     mRecommendedEyeFOV[eye] = mMaximumEyeFOV[eye] =
-      SetFromTanRadians(left, right, bottom, top);
+      SetFromTanRadians(-left, right, -bottom, top);
   }
 
   SetFOV(mRecommendedEyeFOV[Eye_Left], mRecommendedEyeFOV[Eye_Right], 0.01,
@@ -250,23 +247,25 @@ bool
 HMDInfoOSVR::SetFOV(const VRFieldOfView& aFOVLeft,
                     const VRFieldOfView& aFOVRight, double zNear, double zFar)
 {
-
-  printf("Inside setFOV\n");
   OSVR_EyeCount numEyes;
   osvr_ClientGetNumEyesForViewer(*m_display, 0, &numEyes);
-  printf("Number of eyes for viewer 0 is %d", int(numEyes));
   for (uint8_t eye = 0; eye < numEyes; eye++) {
+
+    mEyeFOV[eye] = eye == 0 ? aFOVLeft : aFOVRight;
+
     OSVR_ViewportDimension l, b, w, h;
     osvr_ClientGetRelativeViewportForViewerEyeSurface(*m_display, 0, eye, 0, &l,
                                                       &b, &w, &h);
     mEyeResolution.width = w;
     mEyeResolution.height = h;
-    printf("Got viewport dimensions as %f, %f, %f, %f \n", l, b, w, h);
     OSVR_Pose3 eyePose;
-    osvr_ClientGetViewerEyePose(*m_display, 0, eye, &eyePose);
-    printf("Got viewer eye pose x:%f, y:%f, z:%f \n",
-           eyePose.translation.data[0], eyePose.translation.data[1],
-           eyePose.translation.data[2]);
+    // Viewer eye pose may not be immediately available, update client context until we get it
+    OSVR_ReturnCode ret =
+      osvr_ClientGetViewerEyePose(*m_display, 0, eye, &eyePose);
+    while (ret != OSVR_RETURN_SUCCESS) {
+      osvr_ClientUpdate(*m_ctx);
+      ret = osvr_ClientGetViewerEyePose(*m_display, 0, eye, &eyePose);
+    }
     mEyeTranslation[eye].x = eyePose.translation.data[0];
     mEyeTranslation[eye].y = eyePose.translation.data[1];
     mEyeTranslation[eye].z = eyePose.translation.data[2];
@@ -473,7 +472,7 @@ VRHMDManagerOSVR::Init()
 
   if (ret != OSVR_RETURN_SUCCESS) {
     // couldn't get display config
-    printf("Couldn't get a display object \n");
+    printf_stderr("Couldn't get an OSVR display object \n");
     return false;
   }
 
