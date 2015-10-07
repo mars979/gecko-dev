@@ -74,6 +74,8 @@ typedef OSVR_ReturnCode (*pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf)(
   OSVR_DisplayConfig disp, OSVR_ViewerCount viewer, OSVR_EyeCount eye,
   OSVR_SurfaceCount surface, float near, float far,
   OSVR_MatrixConventions flags, float* matrix);
+typedef OSVR_ReturnCode (*pfn_osvrClientCheckDisplayStartup)(
+  OSVR_DisplayConfig disp);
 }
 
 static pfn_osvrClientInit osvr_ClientInit = nullptr;
@@ -96,6 +98,8 @@ static pfn_osvrClientGetRelativeViewportForViewerEyeSurface
   osvr_ClientGetRelativeViewportForViewerEyeSurface = nullptr;
 static pfn_osvrClientGetViewerEyeSurfaceProjectionMatrixf
   osvr_ClientGetViewerEyeSurfaceProjectionMatrixf = nullptr;
+static pfn_osvrClientCheckDisplayStartup osvr_ClientCheckDisplayStartup =
+  nullptr;
 
 bool
 LoadOSVRRuntime()
@@ -168,6 +172,7 @@ LoadOSVRRuntime()
   REQUIRE_FUNCTION(ClientGetViewerEyeSurfaceProjectionClippingPlanes);
   REQUIRE_FUNCTION(ClientGetRelativeViewportForViewerEyeSurface);
   REQUIRE_FUNCTION(ClientGetViewerEyeSurfaceProjectionMatrixf);
+  REQUIRE_FUNCTION(ClientCheckDisplayStartup);
 
 #undef REQUIRE_FUNCTION
 
@@ -374,6 +379,7 @@ struct RenderTargetSetOSVR : public VRHMDRenderingSupport::RenderTargetSet
       if (!renderTargets[i])
         return false;
     }
+    return true;
   }
 
   already_AddRefed<CompositingRenderTarget> GetNextRenderTarget() override
@@ -473,6 +479,27 @@ VRHMDManagerOSVR::Init()
   if (ret != OSVR_RETURN_SUCCESS) {
     // couldn't get display config
     printf_stderr("Couldn't get an OSVR display object \n");
+    return false;
+  }
+
+  osvr_ClientUpdate(m_ctx);
+  ret = osvr_ClientCheckDisplayStartup(m_display);
+
+  // Typically once we get Display object, pose data is available after
+  // clientUpdate but sometimes it takes ~ 200 ms to get
+  // a succesfull connection, so wait a maximum of 1 second before aborting
+  int numTries = 1;
+  while ((ret != OSVR_RETURN_SUCCESS) && (numTries < 5)) {
+    Sleep(250);
+    osvr_ClientUpdate(m_ctx);
+    ret = osvr_ClientCheckDisplayStartup(m_display);
+    numTries++;
+  }
+
+  if (ret != OSVR_RETURN_SUCCESS) {
+    // couldn't get display fully configured in allotted time
+    printf_stderr(
+      "Display is not fully configured, eye pose is not available \n");
     return false;
   }
 
